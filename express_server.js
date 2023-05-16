@@ -1,9 +1,13 @@
 const express = require("express");
 const app = express();
 const PORT = 8080; // default port 8080
+// const bodyParser = require('body-parser');
+
 
 app.set("view engine", "ejs");
+// app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
+
 
 function generateRandomString() {
   let result = '';
@@ -38,12 +42,21 @@ app.post("/urls", (req, res) => {
 });
 
 app.post("/urls/:id/delete", (req, res) => {
+
   if (urlDatabase[req.params.id]) {
     delete urlDatabase[req.params.id];
 
   }
 
   // res.send(urlDatabase); // Respond with 'Ok' (we will replace this)
+  res.redirect('/urls');
+});
+
+app.post("/urls/:id/update", (req, res) => {
+  if (urlDatabase[req.params.id]) {
+    urlDatabase[req.params.id] = req.body.longURL;
+  }
+  console.log(urlDatabase);
   res.redirect('/urls');
 });
 
@@ -60,7 +73,7 @@ app.get("/urls/new", (req, res) => {
 
 app.get("/urls/:id", (req, res) => {
   const templateVars = { id: req.params.id, longURL: urlDatabase[req.params.id] };
-  res.redirect(urlDatabase[req.params.id]);
+  res.render('urls_show', templateVars);
 });
 
 
