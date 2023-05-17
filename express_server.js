@@ -1,12 +1,13 @@
 const express = require("express");
 const app = express();
 const PORT = 8080; // default port 8080
-// const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
 
 
 app.set("view engine", "ejs");
 // app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 
 function generateRandomString() {
@@ -26,6 +27,22 @@ const urlDatabase = {
   "b2xVn2": "http://www.lighthouselabs.ca",
   "9sm5xK": "http://www.google.com"
 };
+
+
+const userDatabase = [
+  {
+    "userName": "Jojo",
+    "passWord": null
+  },
+  {
+    "userName": "foo",
+    "passWord": null
+  },
+  {
+    "userName": "Avril",
+    "passWord": null
+  }
+];
 
 app.get("/", (req, res) => {
   res.send("Hello!");
@@ -52,6 +69,7 @@ app.post("/urls/:id/delete", (req, res) => {
   res.redirect('/urls');
 });
 
+
 app.post("/urls/:id/update", (req, res) => {
   if (urlDatabase[req.params.id]) {
     urlDatabase[req.params.id] = req.body.longURL;
@@ -61,8 +79,28 @@ app.post("/urls/:id/update", (req, res) => {
 });
 
 
+app.post("/login", (req, res) => {
+  for (const user of userDatabase) {
+    if (user.userName === req.body.username) {
+      res.cookie("username", req.body.username);
+      console.log(`Has set ${req.body.username} to the cookie username`);
+    }
+  }
+  // console.log(req.cookies.username);
+  res.redirect('/urls');
+});
+
+app.post("/logout", (req, res) => {
+  res.clearCookie('username');
+  res.redirect('/urls');
+});
+
+
 app.get("/urls", (req, res) => {
-  const templateVars = { urls: urlDatabase };
+  const templateVars = {
+    username: req.cookies["username"],
+    urls: urlDatabase
+  };
   res.render("urls_index", templateVars);
 });
 
