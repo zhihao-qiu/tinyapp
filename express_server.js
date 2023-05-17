@@ -13,19 +13,6 @@ app.use(bodyParser());
 
 const urlIDLength = 6;
 const userIDLength = 13;
-
-function generateRandomString(length) {
-  let result = '';
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const charactersLength = characters.length;
-  let counter = 0;
-  while (counter < length) {
-    result += characters.charAt(Math.floor(Math.random() * charactersLength));
-    counter += 1;
-  }
-  return result;
-}
-
 const urlDatabase = {
   "b2xVn2": "http://www.lighthouselabs.ca",
   "9sm5xK": "http://www.google.com"
@@ -48,6 +35,27 @@ const users = {
     password: "123",
   },
 };
+
+function generateRandomString(length) {
+  let result = '';
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const charactersLength = characters.length;
+  let counter = 0;
+  while (counter < length) {
+    result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    counter += 1;
+  }
+  return result;
+}
+
+function getUserByEmail(email) {
+  for (const user in users) {
+    if (users[user].email === email) {
+      return true;
+    }
+    return false;
+  }
+}
 
 
 /**
@@ -107,13 +115,14 @@ app.post("/logout", (req, res) => {
 
 
 app.post("/register", (req, res) => {
-  // In order to avoid duplicate entry, need to check if the email address has been existed
-  for (const user in users) {
-    if (users[user].email === req.body.email) {
-      // console.log(`The Email address - ${req.body.email} is EXISTING!`);
-      return res.send(`The Email address - ${req.body.email} is EXISTING!`);
-    }
+  getUserByEmail(req.body.email);
+  // blank email or password, return 400
+  if (!req.body.email.length || !req.body.password.length) {
+    return res.status(400).send('Please fill up each input');
   }
+
+  // In order to avoid duplicate entry, need to check if the email address has been existed
+  if (!getUserByEmail(req.body.email)) return res.status(400).send(`The Email address - ${req.body.email} is EXISTING!`);
 
   // Since this is a new email address, we can add it to the users
   const userID = generateRandomString(userIDLength);
@@ -124,7 +133,6 @@ app.post("/register", (req, res) => {
 
   // set the user email to cookies
   res.cookie('username', req.body.email);
-  console.log(users);
   res.redirect('/urls');
 });
 
