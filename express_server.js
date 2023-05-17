@@ -2,14 +2,12 @@ const express = require("express");
 const app = express();
 const PORT = 8080; // default port 8080
 const cookieParser = require('cookie-parser');
-const bodyParser = require('body-parser');
 
 
 app.set("view engine", "ejs");
 // app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(bodyParser());
 
 const urlIDLength = 6;
 const userIDLength = 13;
@@ -57,6 +55,9 @@ function getUserByEmail(email) {
   }
 }
 
+function getUserNameByID(user_id) {
+  return (users[user_id].email)
+}
 
 /**
  * Function of dealing with POST
@@ -87,35 +88,38 @@ app.post("/urls/:id/update", (req, res) => {
   if (urlDatabase[req.params.id]) {
     urlDatabase[req.params.id] = req.body.longURL;
   }
-  console.log(urlDatabase);
   res.redirect('/urls');
 });
 
 
 app.post("/login", (req, res) => {
+  // blank email or password, return 400
+  if (!req.body.email.length || !req.body.password.length) {
+    return res.status(400).send('Please fill up each input');
+  }
+
   for (const user in users) {
-    if (users[user].email === req.body.username) {
+    if (users[user].email === req.body.email) {
       if (users[user].password === req.body.password) {
-        res.cookie("username", req.body.username);
-        console.log(`Has set ${req.body.username} to the cookie username`);
+        res.cookie("user_id", users[user].id);
+        console.log(`Has set ${users[user].id} to the cookie user_id`);
         return res.redirect('/urls');
       } else {
-        return res.status(401).send('Wrong Password');
+        return res.status(403).send('Wrong Password');
       }
     }
   }
-  return res.status(401).send('Could not find this user');
+  return res.status(403).send('Could not find this user');
 
 });
 
 app.post("/logout", (req, res) => {
-  res.clearCookie('username');
-  res.redirect('/urls');
+  res.clearCookie('user_id');
+  res.redirect('/login');
 });
 
 
 app.post("/register", (req, res) => {
-  getUserByEmail(req.body.email);
   // blank email or password, return 400
   if (!req.body.email.length || !req.body.password.length) {
     return res.status(400).send('Please fill up each input');
@@ -132,7 +136,7 @@ app.post("/register", (req, res) => {
   users[userID].password = req.body.password;
 
   // set the user email to cookies
-  res.cookie('username', req.body.email);
+  res.cookie('user_id', userID);
   res.redirect('/urls');
 });
 
@@ -140,12 +144,13 @@ app.post("/register", (req, res) => {
  * Function of dealing with GET
  */
 app.get("/", (req, res) => {
-  res.send("Hello!");
+  console.log(getUserNameByID('user2RandomID'));
+  res.redirect("/urls");
 });
 
 app.get("/urls", (req, res) => {
   const templateVars = {
-    username: req.cookies["username"] ? req.cookies["username"] : "",
+    username: req.cookies["user_id"] ? getUserNameByID(req.cookies["user_id"]) : "",
     urls: urlDatabase
   };
   res.render("urls_index", templateVars);
@@ -154,7 +159,7 @@ app.get("/urls", (req, res) => {
 
 app.get("/urls/new", (req, res) => {
   const templateVars = {
-    username: req.cookies["username"] ? req.cookies["username"] : "",
+    username: req.cookies["user_id"] ? getUserNameByID(req.cookies["user_id"]) : "",
   };
   res.render("urls_new", templateVars);
 });
@@ -163,11 +168,18 @@ app.get("/urls/:id", (req, res) => {
   const templateVars = {
     id: req.params.id,
     longURL: urlDatabase[req.params.id],
-    username: req.cookies["username"] ? req.cookies["username"] : "",
+    username: req.cookies["user_id"] ? getUserNameByID(req.cookies["user_id"]) : "",
   };
   res.render('urls_show', templateVars);
 });
 
+
+app.get("/login", (req, res) => {
+  const templateVars = {
+    username: 'NULL'
+  };
+  res.render('login', templateVars);
+});
 
 
 app.get("/hello", (req, res) => {
@@ -178,7 +190,7 @@ app.get("/hello", (req, res) => {
 
 app.get("/register", (req, res) => {
   const templateVars = {
-    username: req.cookies["username"] ? req.cookies["username"] : "",
+    username: req.cookies["user_id"] ? getUserNameByID(req.cookies["user_id"]) : "",
   };
   res.render("register", templateVars);
 });
