@@ -56,13 +56,25 @@ function getUserByEmail(email) {
 }
 
 function getUserNameByID(user_id) {
-  return (users[user_id].email)
+  if (users[user_id].email) return users[user_id].email;
+  return null;
 }
 
+function foundURLByID(url_id) {
+  if (urlDatabase[url_id]) return true;
+  return false;
+}
 /**
  * Function of dealing with POST
  */
 app.post("/urls", (req, res) => {
+  /**
+   * If the user is not logged in, POST /urls should respond with an HTML message that tells the user why they cannot shorten URLs. 
+   * Double check that in this case the URL is not added to the database.
+  */
+  if (!req.cookies["user_id"]) {
+    return res.status(400).send('Cannot shorten URLs because you haven\'t logged in yet.');
+  }
   const newID = generateRandomString(urlIDLength);
   if (!urlDatabase[newID]) {
     urlDatabase[newID] = "http://" + req.body.longURL;
@@ -73,18 +85,18 @@ app.post("/urls", (req, res) => {
 });
 
 app.post("/urls/:id/delete", (req, res) => {
-
+  if (!req.cookies['user_id']) return res.redirect('/login');
   if (urlDatabase[req.params.id]) {
     delete urlDatabase[req.params.id];
 
   }
 
-  // res.send(urlDatabase); // Respond with 'Ok' (we will replace this)
   res.redirect('/urls');
 });
 
 
 app.post("/urls/:id/update", (req, res) => {
+  if (!req.cookies['user_id']) return res.redirect('/login');
   if (urlDatabase[req.params.id]) {
     urlDatabase[req.params.id] = req.body.longURL;
   }
@@ -158,6 +170,10 @@ app.get("/urls", (req, res) => {
 
 
 app.get("/urls/new", (req, res) => {
+  // If the user is not logged in, redirect GET /urls/new to GET /login
+  if (!req.cookies["user_id"]) {
+    return res.redirect('/login');
+  }
   const templateVars = {
     username: req.cookies["user_id"] ? getUserNameByID(req.cookies["user_id"]) : "",
   };
@@ -165,6 +181,12 @@ app.get("/urls/new", (req, res) => {
 });
 
 app.get("/urls/:id", (req, res) => {
+  /**
+   * If a user tries to access a shortened url (GET /u/:id) that does not exist (:id is not in the database), 
+   * we should send them a relevant message.
+   */
+
+  if (!foundURLByID(req.params.id)) return res.status(400).send('The URL is not existed!');
   const templateVars = {
     id: req.params.id,
     longURL: urlDatabase[req.params.id],
@@ -175,10 +197,14 @@ app.get("/urls/:id", (req, res) => {
 
 
 app.get("/login", (req, res) => {
+  // If the user is logged in, GET /login should redirect to GET /urls
+  if (req.cookies['user_id']) {
+    return res.redirect('/urls');
+  }
   const templateVars = {
     username: 'NULL'
   };
-  res.render('login', templateVars);
+  return res.render('login', templateVars);
 });
 
 
@@ -189,6 +215,10 @@ app.get("/hello", (req, res) => {
 
 
 app.get("/register", (req, res) => {
+  // If the user is logged in, GET /register should redirect to GET /urls
+  if (req.cookies['user_id']) {
+    return res.redirect('/urls');
+  }
   const templateVars = {
     username: req.cookies["user_id"] ? getUserNameByID(req.cookies["user_id"]) : "",
   };
