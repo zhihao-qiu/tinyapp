@@ -2,17 +2,20 @@ const express = require("express");
 const app = express();
 const PORT = 8080; // default port 8080
 const cookieParser = require('cookie-parser');
+const bodyParser = require('body-parser');
 
 
 app.set("view engine", "ejs");
 // app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(bodyParser());
 
+const urlIDLength = 6;
+const userIDLength = 13;
 
-function generateRandomString() {
+function generateRandomString(length) {
   let result = '';
-  const length = 6;
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   const charactersLength = characters.length;
   let counter = 0;
@@ -28,28 +31,30 @@ const urlDatabase = {
   "9sm5xK": "http://www.google.com"
 };
 
-
-const userDatabase = [
-  {
-    "userName": "Jojo",
-    "passWord": null
+const users = {
+  userRandomID: {
+    id: "userRandomID",
+    email: "user@example.com",
+    password: "purple-monkey-dinosaur",
   },
-  {
-    "userName": "foo",
-    "passWord": null
+  user2RandomID: {
+    id: "user2RandomID",
+    email: "user2@example.com",
+    password: "dishwasher-funk",
   },
-  {
-    "userName": "Avril",
-    "passWord": null
-  }
-];
+  user3RandomID: {
+    id: "user3RandomID",
+    email: "a@a",
+    password: "123",
+  },
+};
 
-app.get("/", (req, res) => {
-  res.send("Hello!");
-});
 
+/**
+ * Function of dealing with POST
+ */
 app.post("/urls", (req, res) => {
-  const newID = generateRandomString();
+  const newID = generateRandomString(urlIDLength);
   if (!urlDatabase[newID]) {
     urlDatabase[newID] = "http://" + req.body.longURL;
   }
@@ -80,14 +85,19 @@ app.post("/urls/:id/update", (req, res) => {
 
 
 app.post("/login", (req, res) => {
-  for (const user of userDatabase) {
-    if (user.userName === req.body.username) {
-      res.cookie("username", req.body.username);
-      console.log(`Has set ${req.body.username} to the cookie username`);
+  for (const user in users) {
+    if (users[user].email === req.body.username) {
+      if (users[user].password === req.body.password) {
+        res.cookie("username", req.body.username);
+        console.log(`Has set ${req.body.username} to the cookie username`);
+        return res.redirect('/urls');
+      } else {
+        return res.status(401).send('Wrong Password');
+      }
     }
   }
-  // console.log(req.cookies.username);
-  res.redirect('/urls');
+  return res.status(401).send('Could not find this user');
+
 });
 
 app.post("/logout", (req, res) => {
@@ -96,9 +106,38 @@ app.post("/logout", (req, res) => {
 });
 
 
+app.post("/register", (req, res) => {
+  // In order to avoid duplicate entry, need to check if the email address has been existed
+  for (const user in users) {
+    if (users[user].email === req.body.email) {
+      // console.log(`The Email address - ${req.body.email} is EXISTING!`);
+      return res.send(`The Email address - ${req.body.email} is EXISTING!`);
+    }
+  }
+
+  // Since this is a new email address, we can add it to the users
+  const userID = generateRandomString(userIDLength);
+  users[userID] = {};
+  users[userID].id = userID;
+  users[userID].email = req.body.email;
+  users[userID].password = req.body.password;
+
+  // set the user email to cookies
+  res.cookie('username', req.body.email);
+  console.log(users);
+  res.redirect('/urls');
+});
+
+/**
+ * Function of dealing with GET
+ */
+app.get("/", (req, res) => {
+  res.send("Hello!");
+});
+
 app.get("/urls", (req, res) => {
   const templateVars = {
-    username: req.cookies["username"],
+    username: req.cookies["username"] ? req.cookies["username"] : "",
     urls: urlDatabase
   };
   res.render("urls_index", templateVars);
@@ -106,11 +145,18 @@ app.get("/urls", (req, res) => {
 
 
 app.get("/urls/new", (req, res) => {
-  res.render("urls_new");
+  const templateVars = {
+    username: req.cookies["username"] ? req.cookies["username"] : "",
+  };
+  res.render("urls_new", templateVars);
 });
 
 app.get("/urls/:id", (req, res) => {
-  const templateVars = { id: req.params.id, longURL: urlDatabase[req.params.id] };
+  const templateVars = {
+    id: req.params.id,
+    longURL: urlDatabase[req.params.id],
+    username: req.cookies["username"] ? req.cookies["username"] : "",
+  };
   res.render('urls_show', templateVars);
 });
 
@@ -119,6 +165,14 @@ app.get("/urls/:id", (req, res) => {
 app.get("/hello", (req, res) => {
   const templateVars = { greeting: "Hello World!" };
   res.render("hello_world", templateVars);
+});
+
+
+app.get("/register", (req, res) => {
+  const templateVars = {
+    username: req.cookies["username"] ? req.cookies["username"] : "",
+  };
+  res.render("register", templateVars);
 });
 
 app.listen(PORT, () => {
