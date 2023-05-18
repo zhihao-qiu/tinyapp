@@ -2,15 +2,26 @@ const morgan = require('morgan');
 const express = require("express");
 const app = express();
 const PORT = 8080; // default port 8080
-const cookieParser = require('cookie-parser');
+const cookieSession = require('cookie-session');
 const bcrypt = require('bcryptjs');
-
+const { generateRandomString,
+  getUserByEmail,
+  getUserNameByID,
+  foundURLByID,
+  urlsForUser,
+  checkURLBelongsToUser } = require("./helpers");
 
 app.use(morgan('dev'));
 app.set("view engine", "ejs");
 // app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
+app.use(cookieSession({
+  name: 'TinyApp sessions',
+  keys: ['key1'],
+
+  // Cookie Options
+  maxAge: 24 * 60 * 60 * 1000 // 24 hours
+}));
 
 const urlIDLength = 6;
 const userIDLength = 13;
@@ -42,43 +53,6 @@ const users = {
   },
 };
 
-function generateRandomString(length) {
-  return Math.random().toString(36).substring(2, length + 2);
-}
-
-function getUserByEmail(email) {
-  for (const user in users) {
-    if (users[user].email === email) {
-      return true;
-    }
-    return false;
-  }
-}
-
-function getUserNameByID(user_id) {
-  if (users[user_id].email) return users[user_id].email;
-  return null;
-}
-
-function foundURLByID(url_id) {
-  if (urlDatabase[url_id]) return true;
-  return false;
-}
-
-
-function urlsForUser(id) {
-  let urls = {};
-  if (getUserNameByID(id)) {
-    for (const url in urlDatabase) {
-      if (urlDatabase[url].userID === id) urls[url] = urlDatabase[url].longURL;
-    }
-  }
-  return urls;
-}
-
-function checkURLBelongsToUser(url_id, user_id) {
-  return urlDatabase[url_id].userID === user_id;
-}
 
 /**
  * Function of dealing with POST
@@ -88,7 +62,7 @@ app.post("/urls", (req, res) => {
    * If the user is not logged in, POST /urls should respond with an HTML message that tells the user why they cannot shorten URLs. 
    * Double check that in this case the URL is not added to the database.
   */
-  if (!req.cookies["user_id"]) {
+  if (!req.session.user_id) {
     return res.status(400).send('Cannot shorten URLs because you haven\'t logged in yet.');
   }
   const newID = generateRandomString(urlIDLength);
@@ -96,7 +70,7 @@ app.post("/urls", (req, res) => {
   if (!urlDatabase[newID]) {
     urlDatabase[newID] = {};
     urlDatabase[newID].longURL = "http://" + req.body.longURL;
-    urlDatabase[newID].userID = req.cookies['user_id'];
+    urlDatabase[newID].userID = req.session.user_id;
   }
 
   // res.send(urlDatabase); // Respond with 'Ok' (we will replace this)
@@ -104,24 +78,21 @@ app.post("/urls", (req, res) => {
 });
 
 app.post("/urls/:id/delete", (req, res) => {
-  if (!req.cookies['user_id']) return res.redirect('/login');
-  if (urlDatabase[req.params.id] && urlDatabase[req.params.id].userID !== req.cookies['user_id']) return res.status(400).send('This is not your URL');
+  const url_id = req.params.id;
+  if (!req.session.user_id) return res.redirect('/login');
+  if (urlDatabase[url_id] && urlDatabase[url_id].userID !== req.session.user_id) return res.status(400).send('This is not your URL');
 
-  delete urlDatabase[req.params.id];
+  delete urlDatabase[url_id];
   return res.redirect('/urls');
 });
 
-
 app.post("/urls/:id/update", (req, res) => {
-  if (!req.cookies['user_id']) return res.redirect('/login');
-  console.log('user exist:', urlDatabase[req.params.id]);
-  console.log('my url:', urlDatabase[req.params.id].userID !== req.cookies['user_id']);
-  if (urlDatabase[req.params.id] && urlDatabase[req.params.id].userID !== req.cookies['user_id']) return res.status(400).send('This is not your URL');
+  if (!req.session.user_id) return res.redirect('/login');
+  if (urlDatabase[req.params.id] && urlDatabase[req.params.id].userID !== req.session.user_id) return res.status(400).send('This is not your URL');
 
   urlDatabase[req.params.id].longURL = req.body.longURL;
   return res.redirect('/urls');
 });
-
 
 app.post("/login", (req, res) => {
   const email = req.body.email;
@@ -135,7 +106,7 @@ app.post("/login", (req, res) => {
   for (const user in users) {
     if (users[user].email === email) {
       if (bcrypt.compareSync(password, users[user].password)) {
-        res.cookie("user_id", users[user].id);
+        req.session.user_id = users[user].id;
         console.log(`Has set ${users[user].id} to the cookie user_id`);
         return res.redirect('/urls');
       } else {
@@ -148,10 +119,9 @@ app.post("/login", (req, res) => {
 });
 
 app.post("/logout", (req, res) => {
-  res.clearCookie('user_id');
+  req.session = null;
   res.redirect('/login');
 });
-
 
 app.post("/register", (req, res) => {
   const email = req.body.email;
@@ -163,46 +133,47 @@ app.post("/register", (req, res) => {
   }
 
   // In order to avoid duplicate entry, need to check if the email address has been existed
-  if (!getUserByEmail(email)) return res.status(400).send(`The Email address - ${email} EXISTS!`);
+  const newuser = getUserByEmail(email, users) ? getUserByEmail(email, users) : {};
+
+  if (newuser.email) return res.status(400).send(`The Email address - ${email} EXISTS!`);
 
   // Since this is a new email address, we can add it to the users
   const userID = generateRandomString(userIDLength);
-  let newuser = {};
   newuser.id = userID;
   newuser.email = email;
   newuser.password = bcrypt.hashSync(password, 10);
   users[userID] = newuser;
 
   // set the user email to cookies
-  res.cookie('user_id', userID);
+  req.session.user_id = userID;
   res.redirect('/urls');
 });
+
+
 
 /**
  * Function of dealing with GET
  */
 app.get("/", (req, res) => {
-  console.log(getUserNameByID('user2RandomID'));
   res.redirect("/urls");
 });
 
 app.get("/urls", (req, res) => {
   // If the user is not logged in, redirect GET /urls/new to GET /login
-  if (!req.cookies['user_id']) return res.redirect('/login');
+  if (!req.session.user_id) return res.redirect('/login');
   const templateVars = {
-    username: req.cookies["user_id"] ? getUserNameByID(req.cookies["user_id"]) : "",
-    urls: urlsForUser(req.cookies["user_id"])
+    username: req.session.user_id ? getUserNameByID(req.session.user_id, users) : "",
+    urls: urlsForUser(req.session.user_id, urlDatabase, users)
   };
   return res.render("urls_index", templateVars);
 });
 
-
 app.get("/urls/new", (req, res) => {
   // If the user is not logged in, redirect GET /urls/new to GET /login
-  if (!req.cookies["user_id"]) return res.redirect('/login');
+  if (!req.session.user_id) return res.redirect('/login');
 
   const templateVars = {
-    username: req.cookies["user_id"] ? getUserNameByID(req.cookies["user_id"]) : "",
+    username: req.session.user_id ? getUserNameByID(req.session.user_id, users) : "",
   };
   res.render("urls_new", templateVars);
 });
@@ -213,21 +184,20 @@ app.get("/urls/:id", (req, res) => {
    * we should send them a relevant message.
    */
 
-  if (!foundURLByID(req.params.id)) return res.status(400).send('The URL is not existed!');
-  if (!checkURLBelongsToUser(req.params.id, req.cookies['user_id'])) return res.status(400).send('This is not your URL');
+  if (!foundURLByID(req.params.id, urlDatabase)) return res.status(400).send('The URL is not existed!');
+  if (!checkURLBelongsToUser(req.params.id, req.session.user_id, urlDatabase)) return res.status(400).send('This is not your URL');
 
   const templateVars = {
     id: req.params.id,
     longURL: urlDatabase[req.params.id].longURL,
-    username: req.cookies["user_id"] ? getUserNameByID(req.cookies["user_id"]) : "",
+    username: req.session.user_id ? getUserNameByID(req.session.user_id, users) : "",
   };
   return res.render('urls_show', templateVars);
 });
 
-
 app.get("/login", (req, res) => {
   // If the user is logged in, GET /login should redirect to GET /urls
-  if (req.cookies['user_id']) return res.redirect('/urls');
+  if (req.session.user_id) return res.redirect('/urls');
 
   const templateVars = {
     username: 'LOGIN'
@@ -235,22 +205,22 @@ app.get("/login", (req, res) => {
   return res.render('login', templateVars);
 });
 
-
 app.get("/hello", (req, res) => {
   const templateVars = { greeting: "Hello World!" };
   res.render("hello_world", templateVars);
 });
 
-
 app.get("/register", (req, res) => {
   // If the user is logged in, GET /register should redirect to GET /urls
-  if (req.cookies['user_id']) return res.redirect('/urls');
+  if (req.session.user_id) return res.redirect('/urls');
 
   const templateVars = {
     username: 'REGISTER',
   };
   res.render("register", templateVars);
 });
+
+
 
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}!`);

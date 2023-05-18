@@ -4,15 +4,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "mocha",
     "start": "./node_modules/.bin/nodemon -L express_server.js"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/zhihao-qiu/tinyapp.git"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["LHL","Tiny App"],
+  "author": "Zhihao Qiu",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/zhihao-qiu/tinyapp/issues"
@@ -20,13 +20,14 @@
   "homepage": "https://github.com/zhihao-qiu/tinyapp#readme",
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "body-parse": "^0.1.0",
-    "cookie-parser": "^1.4.6",
+    "cookie-session": "^2.0.0",
     "ejs": "^3.1.9",
     "express": "^4.18.2",
     "morgan": "^1.10.0"
   },
   "devDependencies": {
+    "chai": "^4.3.7",
+    "mocha": "^10.2.0",
     "nodemon": "^2.0.22"
   }
 }
