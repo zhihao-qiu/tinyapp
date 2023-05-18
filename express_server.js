@@ -1,7 +1,7 @@
 const morgan = require('morgan');
 const express = require("express");
 const app = express();
-const PORT = 8080; // default port 8080
+const PORT = 8080;
 const cookieSession = require('cookie-session');
 const bcrypt = require('bcryptjs');
 const { generateRandomString,
@@ -13,13 +13,10 @@ const { generateRandomString,
 
 app.use(morgan('dev'));
 app.set("view engine", "ejs");
-// app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieSession({
   name: 'TinyApp sessions',
   keys: ['key1'],
-
-  // Cookie Options
   maxAge: 24 * 60 * 60 * 1000 // 24 hours
 }));
 
@@ -28,10 +25,18 @@ const userIDLength = 13;
 const urlDatabase = {
   "b2xVn2": {
     longURL: "http://www.lighthouselabs.ca",
-    userID: "user2RandomID",
+    userID: "user3RandomID",
   },
   "9sm5xK": {
     longURL: "http://www.google.com",
+    userID: "user3RandomID",
+  },
+  "8rc4wJ": {
+    longURL: "https://www.npmjs.com/",
+    userID: "user2RandomID",
+  },
+  "c3yWm4": {
+    longURL: "https://expressjs.com/",
     userID: "user3RandomID",
   },
 };
@@ -107,7 +112,6 @@ app.post("/login", (req, res) => {
     if (users[user].email === email) {
       if (bcrypt.compareSync(password, users[user].password)) {
         req.session.user_id = users[user].id;
-        console.log(`Has set ${users[user].id} to the cookie user_id`);
         return res.redirect('/urls');
       } else {
         return res.status(403).send('The password is not correct');
