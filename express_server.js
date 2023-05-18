@@ -12,8 +12,14 @@ app.use(cookieParser());
 const urlIDLength = 6;
 const userIDLength = 13;
 const urlDatabase = {
-  "b2xVn2": "http://www.lighthouselabs.ca",
-  "9sm5xK": "http://www.google.com"
+  "b2xVn2": {
+    longURL: "http://www.lighthouselabs.ca",
+    userID: "user2RandomID",
+  },
+  "9sm5xK": {
+    longURL: "http://www.google.com",
+    userID: "user3RandomID",
+  },
 };
 
 const users = {
@@ -64,6 +70,22 @@ function foundURLByID(url_id) {
   if (urlDatabase[url_id]) return true;
   return false;
 }
+
+
+function urlsForUser(id) {
+  let urls = {};
+  if (getUserNameByID(id)) {
+    for (const url in urlDatabase) {
+      if (urlDatabase[url].userID === id) urls[url] = urlDatabase[url].longURL;
+    }
+  }
+  return urls;
+}
+
+function checkURLBelongsToUser(url_id, user_id) {
+  return urlDatabase[url_id].userID === user_id;
+}
+
 /**
  * Function of dealing with POST
  */
@@ -76,8 +98,11 @@ app.post("/urls", (req, res) => {
     return res.status(400).send('Cannot shorten URLs because you haven\'t logged in yet.');
   }
   const newID = generateRandomString(urlIDLength);
+
   if (!urlDatabase[newID]) {
-    urlDatabase[newID] = "http://" + req.body.longURL;
+    urlDatabase[newID] = {};
+    urlDatabase[newID].longURL = "http://" + req.body.longURL;
+    urlDatabase[newID].userID = req.cookies['user_id'];
   }
 
   // res.send(urlDatabase); // Respond with 'Ok' (we will replace this)
@@ -86,21 +111,21 @@ app.post("/urls", (req, res) => {
 
 app.post("/urls/:id/delete", (req, res) => {
   if (!req.cookies['user_id']) return res.redirect('/login');
-  if (urlDatabase[req.params.id]) {
-    delete urlDatabase[req.params.id];
+  if (urlDatabase[req.params.id] && urlDatabase[req.params.id].userID !== req.cookies['user_id']) return res.status(400).send('This is not your URL');
 
-  }
-
-  res.redirect('/urls');
+  delete urlDatabase[req.params.id];
+  return res.redirect('/urls');
 });
 
 
 app.post("/urls/:id/update", (req, res) => {
   if (!req.cookies['user_id']) return res.redirect('/login');
-  if (urlDatabase[req.params.id]) {
-    urlDatabase[req.params.id] = req.body.longURL;
-  }
-  res.redirect('/urls');
+  console.log('user exist:', urlDatabase[req.params.id]);
+  console.log('my url:', urlDatabase[req.params.id].userID !== req.cookies['user_id']);
+  if (urlDatabase[req.params.id] && urlDatabase[req.params.id].userID !== req.cookies['user_id']) return res.status(400).send('This is not your URL');
+
+  urlDatabase[req.params.id].longURL = req.body.longURL;
+  return res.redirect('/urls');
 });
 
 
@@ -161,11 +186,12 @@ app.get("/", (req, res) => {
 });
 
 app.get("/urls", (req, res) => {
+  if (!req.cookies['user_id']) return res.redirect('/login');
   const templateVars = {
     username: req.cookies["user_id"] ? getUserNameByID(req.cookies["user_id"]) : "",
-    urls: urlDatabase
+    urls: urlsForUser(req.cookies["user_id"])
   };
-  res.render("urls_index", templateVars);
+  return res.render("urls_index", templateVars);
 });
 
 
@@ -187,12 +213,14 @@ app.get("/urls/:id", (req, res) => {
    */
 
   if (!foundURLByID(req.params.id)) return res.status(400).send('The URL is not existed!');
+  if (!checkURLBelongsToUser(req.params.id, req.cookies['user_id'])) return res.status(400).send('This is not your URL');
+
   const templateVars = {
     id: req.params.id,
-    longURL: urlDatabase[req.params.id],
+    longURL: urlDatabase[req.params.id].longURL,
     username: req.cookies["user_id"] ? getUserNameByID(req.cookies["user_id"]) : "",
   };
-  res.render('urls_show', templateVars);
+  return res.render('urls_show', templateVars);
 });
 
 
@@ -202,7 +230,7 @@ app.get("/login", (req, res) => {
     return res.redirect('/urls');
   }
   const templateVars = {
-    username: 'NULL'
+    username: 'LOGIN'
   };
   return res.render('login', templateVars);
 });
@@ -220,7 +248,7 @@ app.get("/register", (req, res) => {
     return res.redirect('/urls');
   }
   const templateVars = {
-    username: req.cookies["user_id"] ? getUserNameByID(req.cookies["user_id"]) : "",
+    username: 'REGISTER',
   };
   res.render("register", templateVars);
 });

@@ -16,7 +16,15 @@
           <a class="navbar-brand" href="/login">Login</a>
           <a class="navbar-brand" href="/register">Register</a>
         </div>
-      <% } else if (username !== 'NULL'){ %>
+      <% } else if (username === 'LOGIN'){ %>
+        <div style="float:right">
+          <a class="navbar-brand" href="/register">Register</a>
+        </div>
+        <% } else if (username === 'REGISTER'){ %>
+          <div style="float:right">
+            <a class="navbar-brand" href="/login">Login</a>
+          </div>
+        <% } else if (username !== 'NULL'){ %>
         <div style="float:right">
           <form method="POST" action="/logout">
             <label class="nav-item">Logged in as: <%= username %>!
