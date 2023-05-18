@@ -1,12 +1,15 @@
+const morgan = require('morgan');
 const express = require("express");
 const app = express();
 const PORT = 8080; // default port 8080
 const cookieParser = require('cookie-parser');
+const bcrypt = require('bcryptjs');
 
 
+app.use(morgan('dev'));
 app.set("view engine", "ejs");
 // app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
 const urlIDLength = 6;
@@ -21,35 +24,26 @@ const urlDatabase = {
     userID: "user3RandomID",
   },
 };
-
 const users = {
   userRandomID: {
     id: "userRandomID",
     email: "user@example.com",
-    password: "purple-monkey-dinosaur",
+    password: "$2a$10$0TpJRWm/RtfOBuKGH25c/OxPllh5jXn/HGPNTUklZ4t99EsICk5tS",
   },
   user2RandomID: {
     id: "user2RandomID",
     email: "user2@example.com",
-    password: "dishwasher-funk",
+    password: "$2a$10$gqOlkhztQ.b30a6mwmWH3.y0MFbOng0dPmgW.B6.ISfvsYtro2a2W",
   },
   user3RandomID: {
     id: "user3RandomID",
     email: "a@a",
-    password: "123",
+    password: "$2a$10$EWCJ3UbIzNtcatdLA9IhF.URVwyzYoP269im9nk8Gc9pOk6ASn0L6",
   },
 };
 
 function generateRandomString(length) {
-  let result = '';
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const charactersLength = characters.length;
-  let counter = 0;
-  while (counter < length) {
-    result += characters.charAt(Math.floor(Math.random() * charactersLength));
-    counter += 1;
-  }
-  return result;
+  return Math.random().toString(36).substring(2, length + 2);
 }
 
 function getUserByEmail(email) {
@@ -130,23 +124,26 @@ app.post("/urls/:id/update", (req, res) => {
 
 
 app.post("/login", (req, res) => {
+  const email = req.body.email;
+  const password = req.body.password;
+
   // blank email or password, return 400
-  if (!req.body.email.length || !req.body.password.length) {
-    return res.status(400).send('Please fill up each input');
+  if (!email.length || !password.length) {
+    return res.status(400).send('Please enter your email / password');
   }
 
   for (const user in users) {
-    if (users[user].email === req.body.email) {
-      if (users[user].password === req.body.password) {
+    if (users[user].email === email) {
+      if (bcrypt.compareSync(password, users[user].password)) {
         res.cookie("user_id", users[user].id);
         console.log(`Has set ${users[user].id} to the cookie user_id`);
         return res.redirect('/urls');
       } else {
-        return res.status(403).send('Wrong Password');
+        return res.status(403).send('The password is not correct');
       }
     }
   }
-  return res.status(403).send('Could not find this user');
+  return res.status(403).send('We cannot find an account with that email address');
 
 });
 
@@ -157,20 +154,24 @@ app.post("/logout", (req, res) => {
 
 
 app.post("/register", (req, res) => {
+  const email = req.body.email;
+  const password = req.body.password;
+
   // blank email or password, return 400
-  if (!req.body.email.length || !req.body.password.length) {
-    return res.status(400).send('Please fill up each input');
+  if (!email.length || !password.length) {
+    return res.status(400).send('Please enter your email / password');
   }
 
   // In order to avoid duplicate entry, need to check if the email address has been existed
-  if (!getUserByEmail(req.body.email)) return res.status(400).send(`The Email address - ${req.body.email} is EXISTING!`);
+  if (!getUserByEmail(email)) return res.status(400).send(`The Email address - ${email} EXISTS!`);
 
   // Since this is a new email address, we can add it to the users
   const userID = generateRandomString(userIDLength);
-  users[userID] = {};
-  users[userID].id = userID;
-  users[userID].email = req.body.email;
-  users[userID].password = req.body.password;
+  let newuser = {};
+  newuser.id = userID;
+  newuser.email = email;
+  newuser.password = bcrypt.hashSync(password, 10);
+  users[userID] = newuser;
 
   // set the user email to cookies
   res.cookie('user_id', userID);
@@ -186,6 +187,7 @@ app.get("/", (req, res) => {
 });
 
 app.get("/urls", (req, res) => {
+  // If the user is not logged in, redirect GET /urls/new to GET /login
   if (!req.cookies['user_id']) return res.redirect('/login');
   const templateVars = {
     username: req.cookies["user_id"] ? getUserNameByID(req.cookies["user_id"]) : "",
@@ -197,9 +199,8 @@ app.get("/urls", (req, res) => {
 
 app.get("/urls/new", (req, res) => {
   // If the user is not logged in, redirect GET /urls/new to GET /login
-  if (!req.cookies["user_id"]) {
-    return res.redirect('/login');
-  }
+  if (!req.cookies["user_id"]) return res.redirect('/login');
+
   const templateVars = {
     username: req.cookies["user_id"] ? getUserNameByID(req.cookies["user_id"]) : "",
   };
@@ -226,9 +227,8 @@ app.get("/urls/:id", (req, res) => {
 
 app.get("/login", (req, res) => {
   // If the user is logged in, GET /login should redirect to GET /urls
-  if (req.cookies['user_id']) {
-    return res.redirect('/urls');
-  }
+  if (req.cookies['user_id']) return res.redirect('/urls');
+
   const templateVars = {
     username: 'LOGIN'
   };
@@ -244,9 +244,8 @@ app.get("/hello", (req, res) => {
 
 app.get("/register", (req, res) => {
   // If the user is logged in, GET /register should redirect to GET /urls
-  if (req.cookies['user_id']) {
-    return res.redirect('/urls');
-  }
+  if (req.cookies['user_id']) return res.redirect('/urls');
+
   const templateVars = {
     username: 'REGISTER',
   };
