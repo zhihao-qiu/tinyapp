@@ -11,7 +11,10 @@
     "type": "git",
     "url": "git+https://github.com/zhihao-qiu/tinyapp.git"
   },
-  "keywords": ["LHL","Tiny App"],
+  "keywords": [
+    "LHL",
+    "Tiny App"
+  ],
   "author": "Zhihao Qiu",
   "license": "ISC",
   "bugs": {
@@ -23,6 +26,7 @@
     "cookie-session": "^2.0.0",
     "ejs": "^3.1.9",
     "express": "^4.18.2",
+    "method-override": "^3.0.0",
     "morgan": "^1.10.0"
   },
   "devDependencies": {
